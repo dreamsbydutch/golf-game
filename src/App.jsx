@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useMutation, useQuery } from 'convex/react'
+import { api } from '../convex/_generated/api'
 import './App.css'
-
-const STORAGE_KEY = 'golf-game-admin-config'
 
 const course = {
 	name: 'Home Course',
@@ -70,43 +70,6 @@ function createDefaultConfig() {
 	}
 }
 
-function readStoredConfig() {
-	if (typeof window === 'undefined') {
-		return createDefaultConfig()
-	}
-
-	try {
-		const storedValue = window.localStorage.getItem(STORAGE_KEY)
-		if (!storedValue) {
-			return createDefaultConfig()
-		}
-
-		const parsedValue = JSON.parse(storedValue)
-		return {
-			teams: teams.map(defaultTeam => {
-				const storedTeam = parsedValue.teams?.find(team => team.id === defaultTeam.id)
-				return {
-					...defaultTeam,
-					...storedTeam,
-				}
-			}),
-			players: playerDefaults.map(defaultPlayer => {
-				const storedPlayer = parsedValue.players?.find(player => player.id === defaultPlayer.id)
-				return {
-					...defaultPlayer,
-					...storedPlayer,
-				}
-			}),
-			stableford: {
-				...stablefordDefaults,
-				...parsedValue.stableford,
-			},
-		}
-	} catch {
-		return createDefaultConfig()
-	}
-}
-
 function getViewFromHash() {
 	if (typeof window === 'undefined') {
 		return 'score'
@@ -122,16 +85,6 @@ function isEnteredScore(value) {
 
 function getTeeSet(teeKey) {
 	return course.teeSets[teeKey] ?? course.teeSets.white
-}
-
-function createPlayer(playerConfig) {
-	return {
-		id: playerConfig.id,
-		name: playerConfig.name,
-		tee: playerConfig.tee,
-		handicap: playerConfig.handicap,
-		scores: Array(course.holes.length).fill(''),
-	}
 }
 
 function getHandicapStrokes(handicap, strokeIndex) {
@@ -294,12 +247,14 @@ function getTeamClassNameForPlayer(playerId) {
 }
 
 function App() {
-	const [config, setConfig] = useState(readStoredConfig)
-	const [players, setPlayers] = useState(() => readStoredConfig().players.map(createPlayer))
-	const [currentHoleIndex, setCurrentHoleIndex] = useState(0)
+	const gameState = useQuery(api.gameState.get)
+	const initializeGameState = useMutation(api.gameState.initialize)
+	const updateScoreMutation = useMutation(api.gameState.updateScore)
+	const setCurrentHoleIndexMutation = useMutation(api.gameState.setCurrentHoleIndex)
+	const saveAdminSettingsMutation = useMutation(api.gameState.saveAdminSettings)
+	const [adminDraft, setAdminDraft] = useState(createDefaultConfig)
 	const [autoAdvanceHoleIndex, setAutoAdvanceHoleIndex] = useState(null)
 	const [view, setView] = useState(getViewFromHash)
-	const [adminDraft, setAdminDraft] = useState(() => readStoredConfig())
 
 	useEffect(() => {
 		const handleHashChange = () => {
@@ -311,12 +266,45 @@ function App() {
 	}, [])
 
 	useEffect(() => {
-		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
-	}, [config])
+		if (gameState === null) {
+			void initializeGameState({})
+		}
+	}, [gameState, initializeGameState])
 
 	useEffect(() => {
-		setAdminDraft(config)
-	}, [config])
+		if (gameState) {
+			setAdminDraft({
+				teams: gameState.teams,
+				players: gameState.players.map(player => ({
+					id: player.id,
+					name: player.name,
+					tee: player.tee,
+					handicap: player.handicap,
+				})),
+				stableford: gameState.stableford,
+			})
+		}
+	}, [gameState])
+
+	if (gameState === undefined || gameState === null) {
+		return (
+			<main className="app-shell">
+				<section className="teams-panel admin-panel">
+					<div className="section-copy">
+						<h2>Loading</h2>
+						<p>Connecting to shared game state.</p>
+					</div>
+				</section>
+			</main>
+		)
+	}
+
+	const config = {
+		teams: gameState.teams,
+		stableford: gameState.stableford,
+	}
+	const players = gameState.players
+	const currentHoleIndex = gameState.currentHoleIndex
 
 	const updatePlayerScore = (playerId, holeIndex, value) => {
 		const parsedValue = Number(value)
@@ -324,21 +312,11 @@ function App() {
 		const previousScore = players.find(player => player.id === playerId)?.scores[holeIndex]
 		const shouldAutoAdvance = holeIndex === currentHoleIndex && !isEnteredScore(previousScore) && sanitizedValue !== ''
 
-		setPlayers(currentPlayers =>
-			currentPlayers.map(player => {
-				if (player.id !== playerId) {
-					return player
-				}
-
-				const nextScores = [...player.scores]
-				nextScores[holeIndex] = sanitizedValue === '' ? '' : String(sanitizedValue)
-
-				return {
-					...player,
-					scores: nextScores,
-				}
-			}),
-		)
+		void updateScoreMutation({
+			playerId,
+			holeIndex,
+			score: sanitizedValue === '' ? '' : String(sanitizedValue),
+		})
 
 		if (shouldAutoAdvance) {
 			setAutoAdvanceHoleIndex(holeIndex)
@@ -361,9 +339,9 @@ function App() {
 
 		if (nextIncompleteHoleIndex !== -1) {
 			setAutoAdvanceHoleIndex(null)
-			setCurrentHoleIndex(nextIncompleteHoleIndex)
+			void setCurrentHoleIndexMutation({ currentHoleIndex: nextIncompleteHoleIndex })
 		}
-	}, [autoAdvanceHoleIndex, currentHoleIndex, players])
+	}, [autoAdvanceHoleIndex, currentHoleIndex, players, setCurrentHoleIndexMutation])
 
 	const currentHole = course.holes[currentHoleIndex]
 	const currentHoleComplete = players.every(player => isEnteredScore(player.scores[currentHoleIndex]))
@@ -371,39 +349,25 @@ function App() {
 
 	const saveAdminSettings = () => {
 		const sanitizedTeams = adminDraft.teams.map(team => ({
+			id: team.id,
 			...team,
 			name: team.name.trim() || (team.id === 'team-1' ? 'Team 1' : 'Team 2'),
 		}))
 		const sanitizedPlayers = adminDraft.players.map(player => ({
-			...player,
+			id: player.id,
+			name: player.name,
 			tee: player.tee === 'blue' ? 'blue' : 'white',
 			handicap: String(Math.max(0, Math.floor(Number(player.handicap) || 0))),
 		}))
-		const sanitizedStableford = Object.fromEntries(
-			Object.entries(adminDraft.stableford).map(([key, value]) => [key, Number(value) || 0]),
-		)
+		const sanitizedStableford = Object.fromEntries(Object.entries(adminDraft.stableford).map(([key, value]) => [key, Number(value) || 0]))
 
-		const nextConfig = {
+		void saveAdminSettingsMutation({
 			teams: sanitizedTeams,
 			players: sanitizedPlayers,
 			stableford: sanitizedStableford,
-		}
-
-		setConfig(nextConfig)
-		setPlayers(currentPlayers =>
-			currentPlayers.map(player => {
-				const nextPlayerConfig = sanitizedPlayers.find(configPlayer => configPlayer.id === player.id)
-				return nextPlayerConfig
-					? {
-						...player,
-						name: nextPlayerConfig.name,
-						tee: nextPlayerConfig.tee,
-						handicap: nextPlayerConfig.handicap,
-					}
-					: player
-			})
-		)
-		window.location.hash = '#/'
+		}).then(() => {
+			window.location.hash = '#/'
+		})
 	}
 
 	if (view === 'admin') {
@@ -565,7 +529,8 @@ function App() {
 					<summary>
 						<span className="hole-number-display">Hole {currentHole.hole}</span>
 						<span>
-							Par {currentHole.par} • Hcp {currentHole.strokeIndex} • Blue {course.teeSets.blue.yardsByHole[currentHoleIndex]} • White {course.teeSets.white.yardsByHole[currentHoleIndex]}
+							Par {currentHole.par} • Hcp {currentHole.strokeIndex} • Blue {course.teeSets.blue.yardsByHole[currentHoleIndex]} • White{' '}
+							{course.teeSets.white.yardsByHole[currentHoleIndex]}
 						</span>
 					</summary>
 					<div className="hole-header">
@@ -593,15 +558,10 @@ function App() {
 						const roundScoreSummary = getPlayerRoundScoreSummary(player)
 						const hasRoundScores = roundScoreSummary.totalScore > 0
 						const strokeLabel =
-							summary.handicapStrokes > 0
-								? `${summary.handicapStrokes} stroke${summary.handicapStrokes > 1 ? 's' : ''}`
-								: 'No strokes'
+							summary.handicapStrokes > 0 ? `${summary.handicapStrokes} stroke${summary.handicapStrokes > 1 ? 's' : ''}` : 'No strokes'
 						const grossToParLabel = formatToPar(roundScoreSummary.grossToPar, hasRoundScores)
 						const netToParLabel = formatToPar(roundScoreSummary.netToPar, hasRoundScores)
-						const pointLabel =
-							summary.bonusPoints !== 0
-								? `Points ${summary.bonusPoints > 0 ? '+' : ''}${summary.bonusPoints}`
-								: 'Points'
+						const pointLabel = summary.bonusPoints !== 0 ? `Points ${summary.bonusPoints > 0 ? '+' : ''}${summary.bonusPoints}` : 'Points'
 
 						return (
 							<article key={player.id} className={`score-entry-card ${getTeamClassNameForPlayer(player.id)}`}>
@@ -648,7 +608,7 @@ function App() {
 						className="ghost-button"
 						onClick={() => {
 							setAutoAdvanceHoleIndex(null)
-							setCurrentHoleIndex(index => Math.max(0, index - 1))
+							void setCurrentHoleIndexMutation({ currentHoleIndex: Math.max(0, currentHoleIndex - 1) })
 						}}
 						disabled={currentHoleIndex === 0}>
 						Back
@@ -658,7 +618,9 @@ function App() {
 						className="ghost-button"
 						onClick={() => {
 							setAutoAdvanceHoleIndex(null)
-							setCurrentHoleIndex(index => Math.min(course.holes.length - 1, index + 1))
+							void setCurrentHoleIndexMutation({
+								currentHoleIndex: Math.min(course.holes.length - 1, currentHoleIndex + 1),
+							})
 						}}
 						disabled={currentHoleIndex === course.holes.length - 1}>
 						Next
