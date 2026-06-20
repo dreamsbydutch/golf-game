@@ -47,7 +47,7 @@ export const get = query({
 	args: {},
 	handler: async ctx => {
 		const existingState = await ctx.db.query('gameState').first()
-		return existingState ?? null
+		return existingState ?? createDefaultState()
 	},
 })
 

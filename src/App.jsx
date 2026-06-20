@@ -266,7 +266,7 @@ function App() {
 	}, [])
 
 	useEffect(() => {
-		if (gameState === null) {
+		if (gameState && !('_id' in gameState)) {
 			void initializeGameState({})
 		}
 	}, [gameState, initializeGameState])
@@ -286,7 +286,7 @@ function App() {
 		}
 	}, [gameState])
 
-	if (gameState === undefined || gameState === null) {
+	if (gameState === undefined) {
 		return (
 			<main className="app-shell">
 				<section className="teams-panel admin-panel">
