@@ -255,6 +255,7 @@ function App() {
 	const [adminDraft, setAdminDraft] = useState(createDefaultConfig)
 	const [autoAdvanceHoleIndex, setAutoAdvanceHoleIndex] = useState(null)
 	const [view, setView] = useState(getViewFromHash)
+	const [showConnectionHelp, setShowConnectionHelp] = useState(false)
 
 	useEffect(() => {
 		const handleHashChange = () => {
@@ -270,6 +271,19 @@ function App() {
 			void initializeGameState({})
 		}
 	}, [gameState, initializeGameState])
+
+	useEffect(() => {
+		if (gameState !== undefined) {
+			setShowConnectionHelp(false)
+			return
+		}
+
+		const timer = window.setTimeout(() => {
+			setShowConnectionHelp(true)
+		}, 4000)
+
+		return () => window.clearTimeout(timer)
+	}, [gameState])
 
 	useEffect(() => {
 		if (gameState) {
@@ -291,8 +305,16 @@ function App() {
 			<main className="app-shell">
 				<section className="teams-panel admin-panel">
 					<div className="section-copy">
-						<h2>Loading</h2>
-						<p>Connecting to shared game state.</p>
+						<h2>{showConnectionHelp ? 'Convex Connection Problem' : 'Loading'}</h2>
+						{showConnectionHelp ? (
+							<>
+								<p>The app is not receiving a response from Convex.</p>
+								<p>Configured URL: {import.meta.env.VITE_CONVEX_URL || 'Missing VITE_CONVEX_URL'}</p>
+								<p>Check that Vercel is using the latest deployment and that this URL matches your production Convex deployment.</p>
+							</>
+						) : (
+							<p>Connecting to shared game state.</p>
+						)}
 					</div>
 				</section>
 			</main>
