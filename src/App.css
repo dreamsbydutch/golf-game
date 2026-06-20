@@ -1,0 +1,522 @@
+.app-shell {
+	display: grid;
+	gap: 0.7rem;
+	padding-bottom: 1rem;
+}
+
+.admin-shell {
+	padding-top: 0.5rem;
+}
+
+.teams-panel,
+.hole-panel,
+.players-panel {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 18px;
+	box-shadow: var(--shadow);
+	overflow: hidden;
+}
+
+.matchup-header,
+.section-copy {
+	padding: 1rem 1rem 0;
+}
+
+.eyebrow {
+	margin: 0 0 0.35rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	font-size: 0.72rem;
+	color: var(--text);
+}
+
+.matchup-header h1,
+.section-copy h2 {
+	margin: 0;
+}
+
+.section-copy p,
+.team-players,
+.score-field,
+.handicap-field {
+	color: var(--text);
+	font-size: 0.88rem;
+}
+
+.section-copy p {
+	margin: 0.2rem 0 0;
+}
+
+.team-score-list,
+.player-setup-list,
+.hole-entry-list {
+	display: grid;
+	gap: 0.55rem;
+	padding: 1rem;
+}
+
+.team-score-list {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: stretch;
+	padding-top: 0.85rem;
+}
+
+.team-card,
+.setup-card,
+.score-entry-card,
+.hole-header {
+	background: var(--row);
+	border: 1px solid var(--border);
+	border-radius: 16px;
+}
+
+.team-card,
+.setup-card,
+.score-entry-card {
+	padding: 0.95rem;
+}
+
+.team-card {
+	background: linear-gradient(180deg, var(--footer), var(--row));
+	padding: 0.8rem;
+}
+
+.team-card.team-one,
+.score-entry-card.team-one {
+	border-color: #a8c4ad;
+	background: linear-gradient(180deg, rgba(232, 242, 232, 0.96), rgba(246, 240, 225, 0.92));
+}
+
+.team-card.team-two,
+.score-entry-card.team-two {
+	border-color: #c9b59f;
+	background: linear-gradient(180deg, rgba(247, 236, 224, 0.96), rgba(246, 240, 225, 0.92));
+}
+
+.team-card.team-one .team-points,
+.score-entry-card.team-one .player-points-pill,
+.score-entry-card.team-one .stroke-chip {
+	background: rgba(213, 232, 216, 0.78);
+}
+
+.team-card.team-two .team-points,
+.score-entry-card.team-two .player-points-pill,
+.score-entry-card.team-two .stroke-chip {
+	background: rgba(239, 221, 203, 0.84);
+}
+
+.team-label {
+	margin: 0 0 0.2rem;
+	font-size: 0.68rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text);
+}
+
+.team-name {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: var(--text-h);
+}
+
+.team-players {
+	margin: 0.2rem 0 0;
+}
+
+.team-score-row,
+.setup-grid,
+.score-entry-inputs,
+.hole-actions,
+.hole-header {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.team-score-row {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin-top: 0.7rem;
+}
+
+.team-points,
+.team-hole-points,
+.player-points-pill {
+	background: rgba(255, 255, 255, 0.45);
+	border-radius: 14px;
+	padding: 0.7rem;
+	text-align: center;
+}
+
+.team-points strong,
+.team-hole-points strong,
+.player-points-pill strong {
+	display: block;
+	font-size: 1.85rem;
+	line-height: 1;
+	color: var(--accent);
+}
+
+.team-points span,
+.team-hole-points span,
+.player-points-pill span,
+.stat-label {
+	display: block;
+	margin-top: 0.25rem;
+	font-size: 0.72rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text);
+}
+
+.hole-header {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	padding: 0.95rem;
+	margin: 0;
+}
+
+.hole-header strong {
+	color: var(--text-h);
+}
+
+.score-entry-copy {
+	display: grid;
+	gap: 0.12rem;
+}
+
+.player-row-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.player-name-row {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-width: 0;
+}
+
+.tee-marker {
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 999px;
+	flex-shrink: 0;
+	border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.tee-marker.tee-blue {
+	background: #4f83d9;
+}
+
+.tee-marker.tee-white {
+	background: #f6f6f2;
+	border-color: rgba(22, 49, 39, 0.3);
+}
+
+.player-name-row {
+	align-items: baseline;
+	gap: 0.45rem;
+}
+
+.player-to-par-group {
+	display: flex;
+	align-items: baseline;
+	gap: 0.35rem;
+	flex-wrap: wrap;
+}
+
+.player-to-par-display {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 700;
+	line-height: 1;
+	color: var(--text-h);
+	white-space: nowrap;
+}
+
+.player-to-par-divider {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 700;
+	line-height: 1;
+	color: var(--text);
+}
+
+.player-to-par-label {
+	margin: 0;
+	font-size: 0.68rem;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text);
+}
+
+.player-round-meta {
+	margin: 0.05rem 0 0;
+	font-size: 0.72rem;
+	color: var(--text);
+	opacity: 0.9;
+}
+
+.stroke-chip {
+	flex-shrink: 0;
+	padding: 0.18rem 0.5rem;
+	border-radius: 999px;
+	background: var(--footer);
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--accent);
+}
+
+.score-entry-inputs {
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
+	gap: 0.55rem;
+	margin-top: 0.45rem;
+}
+
+.score-field,
+.handicap-field {
+	display: grid;
+	gap: 0.2rem;
+	text-align: left;
+}
+
+input,
+select,
+.ghost-button {
+	font: inherit;
+}
+
+.setup-card input,
+.setup-card select,
+.setup-card .handicap-field input,
+.score-input {
+	width: 100%;
+	box-sizing: border-box;
+	border: 1px solid var(--input-border);
+	border-radius: 12px;
+	background: var(--input-bg);
+	color: var(--text-h);
+}
+
+.setup-card-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 0.75rem;
+	font-size: 0.82rem;
+	color: var(--text);
+}
+
+.setup-card > input {
+	padding: 0.7rem 0.8rem;
+	margin-bottom: 0.75rem;
+}
+
+.setup-card select,
+.setup-card .handicap-field input {
+	padding: 0.65rem 0.7rem;
+}
+
+.score-input {
+	padding: 0.62rem;
+	text-align: center;
+	font-size: 1.05rem;
+	font-weight: 700;
+}
+
+.score-entry-card {
+	padding: 0.7rem 0.8rem;
+}
+
+.score-field span,
+.player-points-pill span {
+	font-size: 0.64rem;
+	margin-top: 0;
+}
+
+.player-points-pill {
+	min-width: 4.25rem;
+	padding: 0.5rem 0.55rem;
+}
+
+.player-points-pill strong {
+	font-size: 1.2rem;
+}
+
+.hole-actions {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	padding: 0 1rem 1rem;
+}
+
+.app-footer-link-row {
+	padding: 0 1rem 1rem;
+}
+
+.app-footer-link-row .admin-link {
+	width: 100%;
+	text-align: center;
+	text-decoration: none;
+}
+
+.hole-details {
+	margin: 0 1rem 1rem;
+	border: 1px solid var(--border);
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.28);
+	overflow: hidden;
+}
+
+.hole-details summary {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem 0.9rem;
+	font-size: 0.8rem;
+	color: var(--text);
+	cursor: pointer;
+	list-style: none;
+}
+
+.hole-number-display {
+	font-size: 1.25rem;
+	font-weight: 700;
+	line-height: 1;
+	color: var(--text-h);
+}
+
+.hole-details summary::-webkit-details-marker {
+	display: none;
+}
+
+.hole-details[open] summary {
+	border-bottom: 1px solid var(--border);
+	background: rgba(255, 255, 255, 0.22);
+}
+
+.hole-status-line {
+	margin: 0;
+	padding: 0 0.9rem 0.8rem;
+	font-size: 0.76rem;
+	color: var(--text);
+}
+
+.ghost-button {
+	border-radius: 999px;
+	padding: 0.8rem 1rem;
+	border: 1px solid var(--input-border);
+	background: transparent;
+	color: var(--text-h);
+	cursor: pointer;
+}
+
+.admin-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+}
+
+.ghost-button:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.admin-panel {
+	padding-bottom: 1rem;
+}
+
+.admin-section {
+	padding: 1rem 1rem 0;
+}
+
+.admin-section h3 {
+	margin: 0 0 0.75rem;
+	font-size: 1rem;
+	color: var(--text-h);
+}
+
+.admin-grid {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.compact-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-card {
+	display: grid;
+	gap: 0.6rem;
+	padding: 0.85rem;
+	background: var(--row);
+	border: 1px solid var(--border);
+	border-radius: 14px;
+	color: var(--text-h);
+}
+
+.admin-field {
+	display: grid;
+	gap: 0.25rem;
+	font-size: 0.82rem;
+	color: var(--text);
+}
+
+.admin-field input,
+.admin-field select {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.65rem 0.7rem;
+	border: 1px solid var(--input-border);
+	border-radius: 10px;
+	background: var(--input-bg);
+	color: var(--text-h);
+	font: inherit;
+}
+
+.admin-actions {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.75rem;
+	padding: 1rem 1rem 0;
+}
+
+.admin-save-button {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+}
+
+@media (max-width: 700px) {
+	.setup-grid,
+	.hole-actions,
+	.hole-header {
+		grid-template-columns: 1fr;
+	}
+
+	.hole-details summary {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.compact-grid,
+	.admin-actions {
+		grid-template-columns: 1fr;
+	}
+
+	.team-score-list,
+	.team-score-row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.score-entry-inputs {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+}
