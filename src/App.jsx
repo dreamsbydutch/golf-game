@@ -300,6 +300,39 @@ function App() {
 		}
 	}, [gameState])
 
+	const config = gameState
+		? {
+				teams: gameState.teams,
+				stableford: gameState.stableford,
+			}
+		: createDefaultConfig()
+	const players = gameState?.players ?? []
+	const currentHoleIndex = gameState?.currentHoleIndex ?? 0
+
+	useEffect(() => {
+		if (gameState === undefined || gameState === null) {
+			return
+		}
+
+		if (autoAdvanceHoleIndex !== currentHoleIndex) {
+			return
+		}
+
+		const holeIsComplete = players.every(player => isEnteredScore(player.scores[currentHoleIndex]))
+		if (!holeIsComplete || currentHoleIndex === course.holes.length - 1) {
+			return
+		}
+
+		const nextIncompleteHoleIndex = course.holes.findIndex(
+			(currentHole, index) => index > currentHoleIndex && players.some(player => !isEnteredScore(player.scores[index])),
+		)
+
+		if (nextIncompleteHoleIndex !== -1) {
+			setAutoAdvanceHoleIndex(null)
+			void setCurrentHoleIndexMutation({ currentHoleIndex: nextIncompleteHoleIndex })
+		}
+	}, [autoAdvanceHoleIndex, currentHoleIndex, gameState, players, setCurrentHoleIndexMutation])
+
 	if (gameState === undefined) {
 		return (
 			<main className="app-shell">
@@ -321,13 +354,6 @@ function App() {
 		)
 	}
 
-	const config = {
-		teams: gameState.teams,
-		stableford: gameState.stableford,
-	}
-	const players = gameState.players
-	const currentHoleIndex = gameState.currentHoleIndex
-
 	const updatePlayerScore = (playerId, holeIndex, value) => {
 		const parsedValue = Number(value)
 		const sanitizedValue = value === '' || !Number.isFinite(parsedValue) ? '' : Math.max(1, Math.floor(parsedValue))
@@ -344,26 +370,6 @@ function App() {
 			setAutoAdvanceHoleIndex(holeIndex)
 		}
 	}
-
-	useEffect(() => {
-		if (autoAdvanceHoleIndex !== currentHoleIndex) {
-			return
-		}
-
-		const holeIsComplete = players.every(player => isEnteredScore(player.scores[currentHoleIndex]))
-		if (!holeIsComplete || currentHoleIndex === course.holes.length - 1) {
-			return
-		}
-
-		const nextIncompleteHoleIndex = course.holes.findIndex(
-			(currentHole, index) => index > currentHoleIndex && players.some(player => !isEnteredScore(player.scores[index])),
-		)
-
-		if (nextIncompleteHoleIndex !== -1) {
-			setAutoAdvanceHoleIndex(null)
-			void setCurrentHoleIndexMutation({ currentHoleIndex: nextIncompleteHoleIndex })
-		}
-	}, [autoAdvanceHoleIndex, currentHoleIndex, players, setCurrentHoleIndexMutation])
 
 	const currentHole = course.holes[currentHoleIndex]
 	const currentHoleComplete = players.every(player => isEnteredScore(player.scores[currentHoleIndex]))
