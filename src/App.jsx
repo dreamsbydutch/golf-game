@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import './App.css'
@@ -399,14 +399,9 @@ function App() {
 
 	const activeGameState = optimisticGameState ?? lastLoadedGameState ?? (gameState?._id ? gameState : null)
 
-	const config = activeGameState
-		? {
-				teams: normalizeTeamsForView(activeGameState.teams),
-				stableford: activeGameState.stableford,
-			}
-		: createDefaultConfig()
+	const teams = useMemo(() => normalizeTeamsForView(activeGameState?.teams ?? teamDefaults), [activeGameState?.teams])
+	const stablefordSettings = activeGameState?.stableford ?? stablefordDefaults
 	const players = activeGameState?.players ?? playerDefaults
-	const teams = config.teams
 	const currentHoleIndex = activeGameState?.currentHoleIndex ?? 0
 	const displayedTeams = applyHoleDraftsToTeams(teams, holeDrafts, displayHoleIndex)
 
@@ -704,7 +699,7 @@ function App() {
 							<article key={team.id} className={`team-card ${getTeamClassName(team.id)}`}>
 								<p className="team-name">{team.name}</p>
 								<div className="team-points team-total-points">
-									<strong>{formatPoints(getTeamStablefordTotal(team, config.stableford))}</strong>
+									<strong>{formatPoints(getTeamStablefordTotal(team, stablefordSettings))}</strong>
 									<span>Stableford</span>
 								</div>
 							</article>
