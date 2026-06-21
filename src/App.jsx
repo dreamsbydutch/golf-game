@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import './App.css'
@@ -41,30 +41,47 @@ const course = {
 	},
 }
 
-const totalPar = course.holes.reduce((total, currentHole) => total + currentHole.par, 0)
 const playerDefaults = [
-	{ id: 1, name: 'Curtis', tee: 'blue', handicap: '12' },
-	{ id: 2, name: 'Andrew', tee: 'white', handicap: '14' },
-	{ id: 3, name: 'Mike', tee: 'blue', handicap: '8' },
-	{ id: 4, name: 'Chris', tee: 'white', handicap: '18' },
+	{ id: 1, name: 'Curtis', tee: 'blue' },
+	{ id: 2, name: 'Andrew', tee: 'white' },
+	{ id: 3, name: 'Mike', tee: 'blue' },
+	{ id: 4, name: 'Chris', tee: 'white' },
 ]
+
 const stablefordDefaults = {
 	doubleBogeyOrWorse: 0,
 	bogey: 1,
 	par: 2,
 	birdie: 4,
 	eagleOrBetter: 6,
-	lowestNetOnHole: 0,
-	highestNetOnHole: 0,
+	bonusShot: 2,
+	mulligan: -1,
 }
-const teams = [
-	{ id: 'team-1', name: 'Team 1', playerIds: [1, 2] },
-	{ id: 'team-2', name: 'Team 2', playerIds: [3, 4] },
+
+const teamDefaults = [
+	{
+		id: 'team-1',
+		name: 'Team 1',
+		playerIds: [1, 2],
+		badGolferId: 2,
+		scores: Array(18).fill(''),
+		bonusShotCounts: Array(18).fill(0),
+		mulliganCounts: Array(18).fill(0),
+	},
+	{
+		id: 'team-2',
+		name: 'Team 2',
+		playerIds: [3, 4],
+		badGolferId: 4,
+		scores: Array(18).fill(''),
+		bonusShotCounts: Array(18).fill(0),
+		mulliganCounts: Array(18).fill(0),
+	},
 ]
 
 function createDefaultConfig() {
 	return {
-		teams,
+		teams: teamDefaults,
 		players: playerDefaults,
 		stableford: stablefordDefaults,
 	}
@@ -83,27 +100,12 @@ function isEnteredScore(value) {
 	return Number.isFinite(score) && score > 0
 }
 
-function getTeeSet(teeKey) {
-	return course.teeSets[teeKey] ?? course.teeSets.white
-}
-
-function getHandicapStrokes(handicap, strokeIndex) {
-	if (!Number.isFinite(handicap) || handicap <= 0) {
-		return 0
-	}
-
-	const fullRounds = Math.floor(handicap / 18)
-	const extraStrokes = handicap % 18
-	return fullRounds + (extraStrokes > 0 && strokeIndex <= extraStrokes ? 1 : 0)
-}
-
-function getStablefordPoints(score, par, handicapStrokes, stablefordSettings) {
+function getStablefordPoints(score, par, stablefordSettings) {
 	if (!Number.isFinite(score) || score <= 0) {
 		return 0
 	}
 
-	const netScore = score - handicapStrokes
-	const scoreToPar = netScore - par
+	const scoreToPar = score - par
 
 	if (scoreToPar <= -2) {
 		return Number(stablefordSettings.eagleOrBetter)
@@ -124,99 +126,8 @@ function getStablefordPoints(score, par, handicapStrokes, stablefordSettings) {
 	return Number(stablefordSettings.doubleBogeyOrWorse)
 }
 
-function getPlayerNetScore(player, holeIndex) {
-	const currentHole = course.holes[holeIndex]
-	const score = Number(player.scores[holeIndex])
-	if (!Number.isFinite(score) || score <= 0) {
-		return null
-	}
-
-	const handicapStrokes = getHandicapStrokes(Number(player.handicap), currentHole.strokeIndex)
-	return score - handicapStrokes
-}
-
-function getHoleBonusPoints(players, playerId, holeIndex, stablefordSettings) {
-	const scoredPlayers = players
-		.map(player => ({
-			id: player.id,
-			netScore: getPlayerNetScore(player, holeIndex),
-		}))
-		.filter(player => player.netScore !== null)
-
-	if (scoredPlayers.length === 0) {
-		return 0
-	}
-
-	const currentPlayer = scoredPlayers.find(player => player.id === playerId)
-	if (!currentPlayer) {
-		return 0
-	}
-
-	const lowestNetScore = Math.min(...scoredPlayers.map(player => player.netScore))
-	const highestNetScore = Math.max(...scoredPlayers.map(player => player.netScore))
-	const lowestNetPlayers = scoredPlayers.filter(player => player.netScore === lowestNetScore)
-	const highestNetPlayers = scoredPlayers.filter(player => player.netScore === highestNetScore)
-	let bonusPoints = 0
-
-	if (currentPlayer.netScore === lowestNetScore) {
-		bonusPoints += Number(stablefordSettings.lowestNetOnHole) / lowestNetPlayers.length
-	}
-
-	if (currentPlayer.netScore === highestNetScore) {
-		bonusPoints += Number(stablefordSettings.highestNetOnHole) / highestNetPlayers.length
-	}
-
-	return bonusPoints
-}
-
 function formatPoints(points) {
 	return Number.isInteger(points) ? points.toString() : points.toFixed(2).replace(/\.?0+$/, '')
-}
-
-function getPlayerHoleSummary(player, holeIndex, stablefordSettings, allPlayers) {
-	const currentHole = course.holes[holeIndex]
-	const teeSet = getTeeSet(player.tee)
-	const score = Number(player.scores[holeIndex])
-	const handicapStrokes = getHandicapStrokes(Number(player.handicap), currentHole.strokeIndex)
-	const basePoints = getStablefordPoints(score, currentHole.par, handicapStrokes, stablefordSettings)
-	const bonusPoints = getHoleBonusPoints(allPlayers, player.id, holeIndex, stablefordSettings)
-	const points = basePoints + bonusPoints
-
-	return {
-		score,
-		points,
-		basePoints,
-		bonusPoints,
-		handicapStrokes,
-		yards: teeSet.yardsByHole[holeIndex],
-		teeName: teeSet.name,
-		hasScore: isEnteredScore(player.scores[holeIndex]),
-	}
-}
-
-function getPlayerStablefordTotal(player, players, stablefordSettings) {
-	return player.scores.reduce((total, rawScore, index) => {
-		const summary = getPlayerHoleSummary(player, index, stablefordSettings, players)
-		return summary.hasScore ? total + summary.points : total
-	}, 0)
-}
-
-function getPlayerRoundScoreSummary(player) {
-	return player.scores.reduce(
-		(totals, rawScore, index) => {
-			const score = Number(rawScore)
-			if (!Number.isFinite(score) || score <= 0) {
-				return totals
-			}
-
-			const handicapStrokes = getHandicapStrokes(Number(player.handicap), course.holes[index].strokeIndex)
-			totals.totalScore += score
-			totals.grossToPar += score - course.holes[index].par
-			totals.netToPar += score - handicapStrokes - course.holes[index].par
-			return totals
-		},
-		{ totalScore: 0, grossToPar: 0, netToPar: 0 },
-	)
 }
 
 function formatToPar(value, hasScores) {
@@ -235,27 +146,155 @@ function formatToPar(value, hasScores) {
 	return `${value}`
 }
 
-function getTeamStablefordTotal(players, team, stablefordSettings) {
-	return team.playerIds.reduce((total, playerId) => {
-		const player = players.find(currentPlayer => currentPlayer.id === playerId)
-		return player ? total + getPlayerStablefordTotal(player, players, stablefordSettings) : total
+function getTeamClassName(teamId) {
+	return teamId === 'team-1' ? 'team-one' : 'team-two'
+}
+
+function getTeamPlayers(team, players) {
+	return team.playerIds.map(playerId => players.find(player => player.id === playerId)).filter(Boolean)
+}
+
+function getBadGolfer(team, players) {
+	return players.find(player => player.id === team.badGolferId) ?? getTeamPlayers(team, players)[0] ?? null
+}
+
+function getTeamById(teams, teamId) {
+	return teams.find(team => team.id === teamId) ?? null
+}
+
+function getTeamHoleSummary(team, holeIndex, stablefordSettings) {
+	const currentHole = course.holes[holeIndex]
+	const score = Number(team.scores[holeIndex])
+	const basePoints = getStablefordPoints(score, currentHole.par, stablefordSettings)
+	const bonusShotCount = Math.max(0, Math.floor(Number(team.bonusShotCounts?.[holeIndex]) || 0))
+	const mulliganCount = Math.max(0, Math.floor(Number(team.mulliganCounts?.[holeIndex]) || 0))
+	const bonusPoints = bonusShotCount * Number(stablefordSettings.bonusShot ?? stablefordDefaults.bonusShot)
+	const mulliganPoints = mulliganCount * Number(stablefordSettings.mulligan ?? stablefordDefaults.mulligan)
+	const points = basePoints + bonusPoints + mulliganPoints
+
+	return {
+		score,
+		points,
+		bonusShotCount,
+		mulliganCount,
+		bonusPoints,
+		mulliganPoints,
+		hasScore: isEnteredScore(team.scores[holeIndex]),
+	}
+}
+
+function getTeamStablefordTotal(team, stablefordSettings) {
+	return team.scores.reduce((total, rawScore, index) => {
+		const summary = getTeamHoleSummary(team, index, stablefordSettings)
+		return summary.hasScore ? total + summary.points : total
 	}, 0)
 }
 
-function getTeamClassNameForPlayer(playerId) {
-	return playerId <= 2 ? 'team-one' : 'team-two'
+function getTeamRoundScoreSummary(team) {
+	return team.scores.reduce(
+		(totals, rawScore, index) => {
+			const score = Number(rawScore)
+			if (!Number.isFinite(score) || score <= 0) {
+				return totals
+			}
+
+			totals.totalScore += score
+			totals.grossToPar += score - course.holes[index].par
+			return totals
+		},
+		{ totalScore: 0, grossToPar: 0 },
+	)
+}
+
+function getHoleYardageSummary(team, players, holeIndex) {
+	return getTeamPlayers(team, players)
+		.map(player => `${player.name}: ${course.teeSets[player.tee]?.yardsByHole[holeIndex] ?? course.teeSets.white.yardsByHole[holeIndex]} yds`)
+		.join(' • ')
+}
+
+function createHoleDrafts(teams, holeIndex) {
+	return Object.fromEntries(
+		teams.map(team => [
+			team.id,
+			{
+				score: team.scores[holeIndex] ?? '',
+				bonusShotCount: String(Math.max(0, Math.floor(Number(team.bonusShotCounts?.[holeIndex]) || 0))),
+				mulliganCount: String(Math.max(0, Math.floor(Number(team.mulliganCounts?.[holeIndex]) || 0))),
+			},
+		]),
+	)
+}
+
+function applyHoleDraftsToTeams(teams, holeDrafts, holeIndex) {
+	return teams.map(team => {
+		const teamDraft = holeDrafts[team.id]
+		if (!teamDraft) {
+			return team
+		}
+
+		const nextScores = [...team.scores]
+		nextScores[holeIndex] = teamDraft.score
+		const nextBonusShotCounts = [...team.bonusShotCounts]
+		nextBonusShotCounts[holeIndex] = Math.max(0, Math.floor(Number(teamDraft.bonusShotCount) || 0))
+		const nextMulliganCounts = [...team.mulliganCounts]
+		nextMulliganCounts[holeIndex] = Math.max(0, Math.floor(Number(teamDraft.mulliganCount) || 0))
+
+		return {
+			...team,
+			scores: nextScores,
+			bonusShotCounts: nextBonusShotCounts,
+			mulliganCounts: nextMulliganCounts,
+		}
+	})
+}
+
+function mergeTeams(preferredTeams, incomingTeams) {
+	return incomingTeams.map(incomingTeam => {
+		const preferredTeam = preferredTeams?.find(team => team.id === incomingTeam.id)
+		if (!preferredTeam) {
+			return incomingTeam
+		}
+
+		return {
+			...incomingTeam,
+			scores: incomingTeam.scores.map((score, index) => score || preferredTeam.scores[index] || ''),
+			bonusShotCounts: incomingTeam.bonusShotCounts.map((count, index) => {
+				const normalizedCount = Math.max(0, Math.floor(Number(count) || 0))
+				return normalizedCount !== 0 ? normalizedCount : (preferredTeam.bonusShotCounts[index] ?? 0)
+			}),
+			mulliganCounts: incomingTeam.mulliganCounts.map((count, index) => {
+				const normalizedCount = Math.max(0, Math.floor(Number(count) || 0))
+				return normalizedCount !== 0 ? normalizedCount : (preferredTeam.mulliganCounts[index] ?? 0)
+			}),
+		}
+	})
+}
+
+function mergeGameStates(preferredState, incomingState) {
+	if (!preferredState) {
+		return incomingState
+	}
+
+	return {
+		...incomingState,
+		teams: mergeTeams(preferredState.teams, incomingState.teams),
+	}
 }
 
 function App() {
 	const gameState = useQuery(api.gameState.get)
 	const initializeGameState = useMutation(api.gameState.initialize)
-	const updateScoreMutation = useMutation(api.gameState.updateScore)
+	const updateTeamHoleMutation = useMutation(api.gameState.updateTeamHole)
 	const setCurrentHoleIndexMutation = useMutation(api.gameState.setCurrentHoleIndex)
 	const saveAdminSettingsMutation = useMutation(api.gameState.saveAdminSettings)
 	const [adminDraft, setAdminDraft] = useState(createDefaultConfig)
-	const [autoAdvanceHoleIndex, setAutoAdvanceHoleIndex] = useState(null)
 	const [view, setView] = useState(getViewFromHash)
 	const [showConnectionHelp, setShowConnectionHelp] = useState(false)
+	const [lastLoadedGameState, setLastLoadedGameState] = useState(null)
+	const [holeDrafts, setHoleDrafts] = useState({})
+	const [optimisticGameState, setOptimisticGameState] = useState(null)
+	const [displayHoleIndex, setDisplayHoleIndex] = useState(0)
+	const optimisticGameStateRef = useRef(null)
 
 	useEffect(() => {
 		const handleHashChange = () => {
@@ -286,54 +325,59 @@ function App() {
 	}, [gameState])
 
 	useEffect(() => {
+		optimisticGameStateRef.current = optimisticGameState
+	}, [optimisticGameState])
+
+	useEffect(() => {
+		if (gameState?._id) {
+			setLastLoadedGameState(currentState => mergeGameStates(optimisticGameStateRef.current ?? currentState, gameState))
+			setOptimisticGameState(null)
+		}
+	}, [gameState])
+
+	useEffect(() => {
 		if (gameState) {
 			setAdminDraft({
-				teams: gameState.teams,
+				teams: gameState.teams.map(team => ({
+					id: team.id,
+					name: team.name,
+					playerIds: team.playerIds,
+					badGolferId: team.badGolferId,
+				})),
 				players: gameState.players.map(player => ({
 					id: player.id,
 					name: player.name,
 					tee: player.tee,
-					handicap: player.handicap,
 				})),
 				stableford: gameState.stableford,
 			})
 		}
 	}, [gameState])
 
-	const config = gameState
+	const activeGameState = optimisticGameState ?? (gameState?._id ? gameState : lastLoadedGameState)
+
+	const config = activeGameState
 		? {
-				teams: gameState.teams,
-				stableford: gameState.stableford,
+				teams: activeGameState.teams,
+				stableford: activeGameState.stableford,
 			}
 		: createDefaultConfig()
-	const players = gameState?.players ?? []
-	const currentHoleIndex = gameState?.currentHoleIndex ?? 0
+	const players = activeGameState?.players ?? playerDefaults
+	const teams = config.teams
+	const currentHoleIndex = activeGameState?.currentHoleIndex ?? 0
+	const displayedTeams = applyHoleDraftsToTeams(teams, holeDrafts, displayHoleIndex)
 
 	useEffect(() => {
-		if (gameState === undefined || gameState === null) {
-			return
+		if (!optimisticGameState) {
+			setDisplayHoleIndex(currentHoleIndex)
 		}
+	}, [currentHoleIndex, optimisticGameState])
 
-		if (autoAdvanceHoleIndex !== currentHoleIndex) {
-			return
-		}
+	useEffect(() => {
+		setHoleDrafts(createHoleDrafts(teams, displayHoleIndex))
+	}, [displayHoleIndex, teams])
 
-		const holeIsComplete = players.every(player => isEnteredScore(player.scores[currentHoleIndex]))
-		if (!holeIsComplete || currentHoleIndex === course.holes.length - 1) {
-			return
-		}
-
-		const nextIncompleteHoleIndex = course.holes.findIndex(
-			(currentHole, index) => index > currentHoleIndex && players.some(player => !isEnteredScore(player.scores[index])),
-		)
-
-		if (nextIncompleteHoleIndex !== -1) {
-			setAutoAdvanceHoleIndex(null)
-			void setCurrentHoleIndexMutation({ currentHoleIndex: nextIncompleteHoleIndex })
-		}
-	}, [autoAdvanceHoleIndex, currentHoleIndex, gameState, players, setCurrentHoleIndexMutation])
-
-	if (gameState === undefined) {
+	if (gameState === undefined && activeGameState === null) {
 		return (
 			<main className="app-shell">
 				<section className="teams-panel admin-panel">
@@ -354,38 +398,104 @@ function App() {
 		)
 	}
 
-	const updatePlayerScore = (playerId, holeIndex, value) => {
+	const getDraftForTeam = teamId =>
+		holeDrafts[teamId] ?? {
+			score: '',
+			bonusShotCount: '0',
+			mulliganCount: '0',
+		}
+
+	const updateTeamScore = (teamId, holeIndex, value) => {
 		const parsedValue = Number(value)
 		const sanitizedValue = value === '' || !Number.isFinite(parsedValue) ? '' : Math.max(1, Math.floor(parsedValue))
-		const previousScore = players.find(player => player.id === playerId)?.scores[holeIndex]
-		const shouldAutoAdvance = holeIndex === currentHoleIndex && !isEnteredScore(previousScore) && sanitizedValue !== ''
 
-		void updateScoreMutation({
-			playerId,
-			holeIndex,
-			score: sanitizedValue === '' ? '' : String(sanitizedValue),
-		})
-
-		if (shouldAutoAdvance) {
-			setAutoAdvanceHoleIndex(holeIndex)
-		}
+		setHoleDrafts(currentDrafts => ({
+			...currentDrafts,
+			[teamId]: {
+				...getDraftForTeam(teamId),
+				score: sanitizedValue === '' ? '' : String(sanitizedValue),
+			},
+		}))
 	}
 
-	const currentHole = course.holes[currentHoleIndex]
-	const currentHoleComplete = players.every(player => isEnteredScore(player.scores[currentHoleIndex]))
-	const completedHoleCount = course.holes.filter((currentCourseHole, index) => players.every(player => isEnteredScore(player.scores[index]))).length
+	const updateTeamBonusShotCount = (teamId, holeIndex, value) => {
+		const parsedValue = Number(value)
+		const sanitizedValue = value === '' || !Number.isFinite(parsedValue) ? 0 : Math.max(0, Math.floor(parsedValue))
+
+		setHoleDrafts(currentDrafts => ({
+			...currentDrafts,
+			[teamId]: {
+				...getDraftForTeam(teamId),
+				bonusShotCount: String(sanitizedValue),
+			},
+		}))
+	}
+
+	const updateTeamMulliganCount = (teamId, holeIndex, value) => {
+		const parsedValue = Number(value)
+		const sanitizedValue = value === '' || !Number.isFinite(parsedValue) ? 0 : Math.max(0, Math.floor(parsedValue))
+
+		setHoleDrafts(currentDrafts => ({
+			...currentDrafts,
+			[teamId]: {
+				...getDraftForTeam(teamId),
+				mulliganCount: String(sanitizedValue),
+			},
+		}))
+	}
+
+	const navigateToHole = async nextHoleIndex => {
+		const committedTeams = applyHoleDraftsToTeams(teams, holeDrafts, displayHoleIndex)
+
+		setOptimisticGameState(currentState => {
+			if (!activeGameState) {
+				return currentState
+			}
+
+			return {
+				...activeGameState,
+				teams: committedTeams,
+				currentHoleIndex: nextHoleIndex,
+			}
+		})
+		setDisplayHoleIndex(nextHoleIndex)
+		setHoleDrafts(createHoleDrafts(committedTeams, nextHoleIndex))
+
+		await Promise.all(
+			committedTeams.map(team =>
+				updateTeamHoleMutation({
+					teamId: team.id,
+					holeIndex: displayHoleIndex,
+					score: team.scores[displayHoleIndex] ?? '',
+					bonusShotCount: team.bonusShotCounts[displayHoleIndex] ?? 0,
+					mulliganCount: team.mulliganCounts[displayHoleIndex] ?? 0,
+				}),
+			),
+		)
+
+		await setCurrentHoleIndexMutation({ currentHoleIndex: nextHoleIndex })
+	}
+
+	const currentHole = course.holes[displayHoleIndex]
+	const currentHoleComplete = displayedTeams.every(team => isEnteredScore(team.scores[displayHoleIndex]))
+	const completedHoleCount = course.holes.filter((currentCourseHole, index) => teams.every(team => isEnteredScore(team.scores[index]))).length
 
 	const saveAdminSettings = () => {
-		const sanitizedTeams = adminDraft.teams.map(team => ({
-			id: team.id,
-			...team,
-			name: team.name.trim() || (team.id === 'team-1' ? 'Team 1' : 'Team 2'),
-		}))
+		const sanitizedTeams = adminDraft.teams.map(team => {
+			const validPlayerIds = team.playerIds.filter(playerId => adminDraft.players.some(player => player.id === playerId))
+			const fallbackBadGolferId = validPlayerIds[0] ?? team.badGolferId
+
+			return {
+				id: team.id,
+				playerIds: validPlayerIds,
+				name: team.name.trim() || (team.id === 'team-1' ? 'Team 1' : 'Team 2'),
+				badGolferId: validPlayerIds.includes(team.badGolferId) ? team.badGolferId : fallbackBadGolferId,
+			}
+		})
 		const sanitizedPlayers = adminDraft.players.map(player => ({
 			id: player.id,
-			name: player.name,
+			name: player.name.trim() || `Player ${player.id}`,
 			tee: player.tee === 'blue' ? 'blue' : 'white',
-			handicap: String(Math.max(0, Math.floor(Number(player.handicap) || 0))),
 		}))
 		const sanitizedStableford = Object.fromEntries(Object.entries(adminDraft.stableford).map(([key, value]) => [key, Number(value) || 0]))
 
@@ -404,85 +514,98 @@ function App() {
 				<section className="teams-panel admin-panel">
 					<div className="section-copy">
 						<h2>Admin</h2>
-						<p>Update player details and Stableford points.</p>
+						<p>Update team names, designate the bonus golfer on each side, and tune Stableford points.</p>
 					</div>
 					<div className="admin-section">
 						<h3>Teams</h3>
 						<div className="admin-grid compact-grid">
-							{adminDraft.teams.map(team => (
-								<label key={team.id} className="admin-field admin-card">
-									<span>{team.id === 'team-1' ? 'Team 1 name' : 'Team 2 name'}</span>
-									<input
-										type="text"
-										value={team.name}
-										onChange={event =>
-											setAdminDraft(currentDraft => ({
-												...currentDraft,
-												teams: currentDraft.teams.map(currentTeam =>
-													currentTeam.id === team.id ? { ...currentTeam, name: event.target.value } : currentTeam,
-												),
-											}))
-										}
-									/>
-								</label>
-							))}
+							{adminDraft.teams.map(team => {
+								const teamPlayers = getTeamPlayers(team, adminDraft.players)
+
+								return (
+									<article key={team.id} className="admin-card">
+										<label className="admin-field">
+											<span>{team.id === 'team-1' ? 'Team 1 name' : 'Team 2 name'}</span>
+											<input
+												type="text"
+												value={team.name}
+												onChange={event =>
+													setAdminDraft(currentDraft => ({
+														...currentDraft,
+														teams: currentDraft.teams.map(currentTeam =>
+															currentTeam.id === team.id ? { ...currentTeam, name: event.target.value } : currentTeam,
+														),
+													}))
+												}
+											/>
+										</label>
+										<label className="admin-field">
+											<span>Bonus golfer</span>
+											<select
+												value={team.badGolferId}
+												onChange={event =>
+													setAdminDraft(currentDraft => ({
+														...currentDraft,
+														teams: currentDraft.teams.map(currentTeam =>
+															currentTeam.id === team.id ? { ...currentTeam, badGolferId: Number(event.target.value) } : currentTeam,
+														),
+													}))
+												}>
+												{teamPlayers.map(player => (
+													<option key={player.id} value={player.id}>
+														{player.name}
+													</option>
+												))}
+											</select>
+										</label>
+									</article>
+								)
+							})}
 						</div>
 					</div>
 					<div className="admin-section">
 						<h3>Players</h3>
 						<div className="admin-grid">
-							{adminDraft.players.map(player => (
-								<article key={player.id} className="admin-card">
-									<strong>{player.id <= 2 ? 'Team 1' : 'Team 2'}</strong>
-									<label className="admin-field">
-										<span>Name</span>
-										<input
-											type="text"
-											value={player.name}
-											onChange={event =>
-												setAdminDraft(currentDraft => ({
-													...currentDraft,
-													players: currentDraft.players.map(currentPlayer =>
-														currentPlayer.id === player.id ? { ...currentPlayer, name: event.target.value } : currentPlayer,
-													),
-												}))
-											}
-										/>
-									</label>
-									<label className="admin-field">
-										<span>Handicap</span>
-										<input
-											type="number"
-											min="0"
-											value={player.handicap}
-											onChange={event =>
-												setAdminDraft(currentDraft => ({
-													...currentDraft,
-													players: currentDraft.players.map(currentPlayer =>
-														currentPlayer.id === player.id ? { ...currentPlayer, handicap: event.target.value } : currentPlayer,
-													),
-												}))
-											}
-										/>
-									</label>
-									<label className="admin-field">
-										<span>Tee</span>
-										<select
-											value={player.tee}
-											onChange={event =>
-												setAdminDraft(currentDraft => ({
-													...currentDraft,
-													players: currentDraft.players.map(currentPlayer =>
-														currentPlayer.id === player.id ? { ...currentPlayer, tee: event.target.value } : currentPlayer,
-													),
-												}))
-											}>
-											<option value="blue">Blue</option>
-											<option value="white">White</option>
-										</select>
-									</label>
-								</article>
-							))}
+							{adminDraft.players.map(player => {
+								const playerTeam = adminDraft.teams.find(team => team.playerIds.includes(player.id))
+
+								return (
+									<article key={player.id} className="admin-card">
+										<strong>{playerTeam?.name ?? 'Team'}</strong>
+										<label className="admin-field">
+											<span>Name</span>
+											<input
+												type="text"
+												value={player.name}
+												onChange={event =>
+													setAdminDraft(currentDraft => ({
+														...currentDraft,
+														players: currentDraft.players.map(currentPlayer =>
+															currentPlayer.id === player.id ? { ...currentPlayer, name: event.target.value } : currentPlayer,
+														),
+													}))
+												}
+											/>
+										</label>
+										<label className="admin-field">
+											<span>Tee</span>
+											<select
+												value={player.tee}
+												onChange={event =>
+													setAdminDraft(currentDraft => ({
+														...currentDraft,
+														players: currentDraft.players.map(currentPlayer =>
+															currentPlayer.id === player.id ? { ...currentPlayer, tee: event.target.value } : currentPlayer,
+														),
+													}))
+												}>
+												<option value="blue">Blue</option>
+												<option value="white">White</option>
+											</select>
+										</label>
+									</article>
+								)
+							})}
 						</div>
 					</div>
 					<div className="admin-section">
@@ -494,8 +617,8 @@ function App() {
 								['par', 'Par'],
 								['bogey', 'Bogey'],
 								['doubleBogeyOrWorse', 'Double bogey or worse'],
-								['lowestNetOnHole', 'Lowest net on hole'],
-								['highestNetOnHole', 'Highest net on hole'],
+								['bonusShot', 'Bonus shot points'],
+								['mulligan', 'Mulligan points'],
 							].map(([key, label]) => (
 								<label key={key} className="admin-field admin-card">
 									<span>{label}</span>
@@ -533,22 +656,17 @@ function App() {
 		<main className="app-shell">
 			<section className="teams-panel">
 				<div className="team-score-list">
-					{config.teams.map(team => (
-						<article key={team.id} className={`team-card ${team.id === 'team-1' ? 'team-one' : 'team-two'}`}>
-							<p className="team-label">{team.name}</p>
-							<p className="team-name">{team.name}</p>
-							<p className="team-players">
-								{team.playerIds
-									.map(playerId => players.find(player => player.id === playerId)?.name)
-									.filter(Boolean)
-									.join(' + ')}
-							</p>
-							<div className="team-points">
-								<strong>{formatPoints(getTeamStablefordTotal(players, team, config.stableford))}</strong>
-								<span>Total</span>
-							</div>
-						</article>
-					))}
+					{displayedTeams.map(team => {
+						return (
+							<article key={team.id} className={`team-card ${getTeamClassName(team.id)}`}>
+								<p className="team-name">{team.name}</p>
+								<div className="team-points team-total-points">
+									<strong>{formatPoints(getTeamStablefordTotal(team, config.stableford))}</strong>
+									<span>Stableford</span>
+								</div>
+							</article>
+						)
+					})}
 				</div>
 			</section>
 
@@ -556,10 +674,7 @@ function App() {
 				<details className="hole-details">
 					<summary>
 						<span className="hole-number-display">Hole {currentHole.hole}</span>
-						<span>
-							Par {currentHole.par} • Hcp {currentHole.strokeIndex} • Blue {course.teeSets.blue.yardsByHole[currentHoleIndex]} • White{' '}
-							{course.teeSets.white.yardsByHole[currentHoleIndex]}
-						</span>
+						<span>Par {currentHole.par}</span>
 					</summary>
 					<div className="hole-header">
 						<div>
@@ -567,8 +682,8 @@ function App() {
 							<strong>{currentHole.par}</strong>
 						</div>
 						<div>
-							<span className="stat-label">Handicap</span>
-							<strong>{currentHole.strokeIndex}</strong>
+							<span className="stat-label">Completed</span>
+							<strong>{completedHoleCount}/18</strong>
 						</div>
 						<div>
 							<span className="stat-label">Blue</span>
@@ -579,52 +694,57 @@ function App() {
 							<strong>{course.teeSets.white.yardsByHole[currentHoleIndex]} yds</strong>
 						</div>
 					</div>
+					<p className="hole-status-line">
+						{currentHoleComplete ? 'Both teams have entered a scramble score for this hole.' : 'Waiting on both team scramble scores for this hole.'}
+					</p>
 				</details>
 				<div className="hole-entry-list">
-					{players.map(player => {
-						const summary = getPlayerHoleSummary(player, currentHoleIndex, config.stableford, players)
-						const roundScoreSummary = getPlayerRoundScoreSummary(player)
-						const hasRoundScores = roundScoreSummary.totalScore > 0
-						const strokeLabel =
-							summary.handicapStrokes > 0 ? `${summary.handicapStrokes} stroke${summary.handicapStrokes > 1 ? 's' : ''}` : 'No strokes'
-						const grossToParLabel = formatToPar(roundScoreSummary.grossToPar, hasRoundScores)
-						const netToParLabel = formatToPar(roundScoreSummary.netToPar, hasRoundScores)
-						const pointLabel = summary.bonusPoints !== 0 ? `Points ${summary.bonusPoints > 0 ? '+' : ''}${summary.bonusPoints}` : 'Points'
+					{displayedTeams.map(team => {
+						const badGolfer = getBadGolfer(team, players)
+						const teamDraft = getDraftForTeam(team.id)
 
 						return (
-							<article key={player.id} className={`score-entry-card ${getTeamClassNameForPlayer(player.id)}`}>
-								<div className="score-entry-copy">
-									<div className="player-row-top">
-										<div className="player-name-row">
-											<span className={`tee-marker tee-${player.tee}`} aria-hidden="true"></span>
-											<p className="team-name">{player.name}</p>
-											<div className="player-to-par-group">
-												<p className="player-to-par-display">{grossToParLabel}</p>
-												<p className="player-to-par-divider">/</p>
-												<p className="player-to-par-label">NET</p>
-												<p className="player-to-par-display">{netToParLabel}</p>
-											</div>
-										</div>
-										<span className="stroke-chip">{strokeLabel}</span>
-									</div>
+							<article key={team.id} className={`score-entry-card ${getTeamClassName(team.id)}`}>
+								<div className="score-entry-copy minimal-score-entry-copy">
+									<p className="team-name">{team.name}</p>
 								</div>
-								<div className="score-entry-inputs">
-									<label className="score-field">
-										<span>Gross</span>
+								<div className="minimal-input-row">
+									<label className="score-field compact-score-field">
+										<span>Score</span>
 										<input
-											className="score-input"
+											className="score-input compact-score-input"
 											type="number"
 											min="1"
 											inputMode="numeric"
-											value={player.scores[currentHoleIndex]}
-											onChange={event => updatePlayerScore(player.id, currentHoleIndex, event.target.value)}
-											aria-label={`${player.name} score on hole ${currentHole.hole}`}
+											value={teamDraft.score}
+											onChange={event => updateTeamScore(team.id, displayHoleIndex, event.target.value)}
+											aria-label={`${team.name} scramble score on hole ${currentHole.hole}`}
 										/>
 									</label>
-									<div className="player-points-pill">
-										<strong>{summary.hasScore ? formatPoints(summary.points) : '-'}</strong>
-										<span>{pointLabel}</span>
-									</div>
+									<label className="score-field compact-score-field">
+										<span>Bonus</span>
+										<input
+											className="score-input compact-score-input"
+											type="number"
+											min="0"
+											inputMode="numeric"
+											value={teamDraft.bonusShotCount}
+											onChange={event => updateTeamBonusShotCount(team.id, displayHoleIndex, event.target.value)}
+											aria-label={`${team.name} bonus shot count on hole ${currentHole.hole}`}
+										/>
+									</label>
+									<label className="score-field compact-score-field">
+										<span>Mulligan</span>
+										<input
+											className="score-input compact-score-input"
+											type="number"
+											min="0"
+											inputMode="numeric"
+											value={teamDraft.mulliganCount}
+											onChange={event => updateTeamMulliganCount(team.id, displayHoleIndex, event.target.value)}
+											aria-label={`${team.name} mulligan count on hole ${currentHole.hole}`}
+										/>
+									</label>
 								</div>
 							</article>
 						)
@@ -635,22 +755,20 @@ function App() {
 						type="button"
 						className="ghost-button"
 						onClick={() => {
-							setAutoAdvanceHoleIndex(null)
-							void setCurrentHoleIndexMutation({ currentHoleIndex: Math.max(0, currentHoleIndex - 1) })
+							const previousHoleIndex = Math.max(0, displayHoleIndex - 1)
+							void navigateToHole(previousHoleIndex)
 						}}
-						disabled={currentHoleIndex === 0}>
+						disabled={displayHoleIndex === 0}>
 						Back
 					</button>
 					<button
 						type="button"
 						className="ghost-button"
 						onClick={() => {
-							setAutoAdvanceHoleIndex(null)
-							void setCurrentHoleIndexMutation({
-								currentHoleIndex: Math.min(course.holes.length - 1, currentHoleIndex + 1),
-							})
+							const nextHoleIndex = Math.min(course.holes.length - 1, displayHoleIndex + 1)
+							void navigateToHole(nextHoleIndex)
 						}}
-						disabled={currentHoleIndex === course.holes.length - 1}>
+						disabled={displayHoleIndex === course.holes.length - 1}>
 						Next
 					</button>
 				</div>
