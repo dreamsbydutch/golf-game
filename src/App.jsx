@@ -79,9 +79,50 @@ const teamDefaults = [
 	},
 ]
 
+function createEmptyScores() {
+	return Array(18).fill('')
+}
+
+function createEmptyCounts() {
+	return Array(18).fill(0)
+}
+
+function normalizeCountArray(values) {
+	if (!Array.isArray(values)) {
+		return createEmptyCounts()
+	}
+
+	return Array.from({ length: 18 }, (_, index) => Math.max(0, Math.floor(Number(values[index]) || 0)))
+}
+
+function normalizeScoreArray(values) {
+	if (!Array.isArray(values)) {
+		return createEmptyScores()
+	}
+
+	return Array.from({ length: 18 }, (_, index) => values[index] ?? '')
+}
+
+function normalizeTeamForView(team) {
+	const teamDefault = teamDefaults.find(defaultTeam => defaultTeam.id === team?.id) ?? teamDefaults[0]
+
+	return {
+		...teamDefault,
+		...team,
+		playerIds: Array.isArray(team?.playerIds) ? team.playerIds : teamDefault.playerIds,
+		scores: normalizeScoreArray(team?.scores),
+		bonusShotCounts: normalizeCountArray(team?.bonusShotCounts),
+		mulliganCounts: normalizeCountArray(team?.mulliganCounts),
+	}
+}
+
+function normalizeTeamsForView(teams) {
+	return (Array.isArray(teams) ? teams : teamDefaults).map(normalizeTeamForView)
+}
+
 function createDefaultConfig() {
 	return {
-		teams: teamDefaults,
+		teams: normalizeTeamsForView(teamDefaults),
 		players: playerDefaults,
 		stableford: stablefordDefaults,
 	}
@@ -163,11 +204,12 @@ function getTeamById(teams, teamId) {
 }
 
 function getTeamHoleSummary(team, holeIndex, stablefordSettings) {
+	const normalizedTeam = normalizeTeamForView(team)
 	const currentHole = course.holes[holeIndex]
-	const score = Number(team.scores[holeIndex])
+	const score = Number(normalizedTeam.scores[holeIndex])
 	const basePoints = getStablefordPoints(score, currentHole.par, stablefordSettings)
-	const bonusShotCount = Math.max(0, Math.floor(Number(team.bonusShotCounts?.[holeIndex]) || 0))
-	const mulliganCount = Math.max(0, Math.floor(Number(team.mulliganCounts?.[holeIndex]) || 0))
+	const bonusShotCount = Math.max(0, Math.floor(Number(normalizedTeam.bonusShotCounts[holeIndex]) || 0))
+	const mulliganCount = Math.max(0, Math.floor(Number(normalizedTeam.mulliganCounts[holeIndex]) || 0))
 	const bonusPoints = bonusShotCount * Number(stablefordSettings.bonusShot ?? stablefordDefaults.bonusShot)
 	const mulliganPoints = mulliganCount * Number(stablefordSettings.mulligan ?? stablefordDefaults.mulligan)
 	const points = basePoints + bonusPoints + mulliganPoints
@@ -179,12 +221,13 @@ function getTeamHoleSummary(team, holeIndex, stablefordSettings) {
 		mulliganCount,
 		bonusPoints,
 		mulliganPoints,
-		hasScore: isEnteredScore(team.scores[holeIndex]),
+		hasScore: isEnteredScore(normalizedTeam.scores[holeIndex]),
 	}
 }
 
 function getTeamStablefordTotal(team, stablefordSettings) {
-	return team.scores.reduce((total, rawScore, index) => {
+	const normalizedTeam = normalizeTeamForView(team)
+	return normalizedTeam.scores.reduce((total, rawScore, index) => {
 		const summary = getTeamHoleSummary(team, index, stablefordSettings)
 		return summary.hasScore ? total + summary.points : total
 	}, 0)
@@ -214,7 +257,7 @@ function getHoleYardageSummary(team, players, holeIndex) {
 
 function createHoleDrafts(teams, holeIndex) {
 	return Object.fromEntries(
-		teams.map(team => [
+		normalizeTeamsForView(teams).map(team => [
 			team.id,
 			{
 				score: team.scores[holeIndex] ?? '',
@@ -226,7 +269,7 @@ function createHoleDrafts(teams, holeIndex) {
 }
 
 function applyHoleDraftsToTeams(teams, holeDrafts, holeIndex) {
-	return teams.map(team => {
+	return normalizeTeamsForView(teams).map(team => {
 		const teamDraft = holeDrafts[team.id]
 		if (!teamDraft) {
 			return team
@@ -249,8 +292,8 @@ function applyHoleDraftsToTeams(teams, holeDrafts, holeIndex) {
 }
 
 function mergeTeams(preferredTeams, incomingTeams) {
-	return incomingTeams.map(incomingTeam => {
-		const preferredTeam = preferredTeams?.find(team => team.id === incomingTeam.id)
+	return normalizeTeamsForView(incomingTeams).map(incomingTeam => {
+		const preferredTeam = normalizeTeamsForView(preferredTeams).find(team => team.id === incomingTeam.id)
 		if (!preferredTeam) {
 			return incomingTeam
 		}
@@ -358,7 +401,7 @@ function App() {
 
 	const config = activeGameState
 		? {
-				teams: activeGameState.teams,
+				teams: normalizeTeamsForView(activeGameState.teams),
 				stableford: activeGameState.stableford,
 			}
 		: createDefaultConfig()
