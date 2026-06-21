@@ -354,7 +354,7 @@ function App() {
 		}
 	}, [gameState])
 
-	const activeGameState = optimisticGameState ?? (gameState?._id ? gameState : lastLoadedGameState)
+	const activeGameState = optimisticGameState ?? lastLoadedGameState ?? (gameState?._id ? gameState : null)
 
 	const config = activeGameState
 		? {
