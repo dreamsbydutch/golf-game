@@ -10,6 +10,7 @@ function createConvexClient() {
 	return new ConvexReactClient(convexUrl)
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 function AppProviders() {
 	const [convexClient, setConvexClient] = useState(createConvexClient)
 
