@@ -40,8 +40,8 @@ export default function App(){
 	if(!groupId||!group)return <GroupPicker groups={game.groups} onSelect={selectGroup} onAdmin={()=>{setSettings(structuredClone(game.groups));setScreen('admin')}}/>
 
 	const hole=holes[holeIndex],submitted=group.submittedHoles[holeIndex]
-	const setValue=(index,value,advance=false)=>{setDraft(values=>values.map((v,i)=>i===index?value:v));if(advance&&index<draft.length-1)setTimeout(()=>inputRefs.current[index+1]?.focus(),0)}
-	const doSubmit=async()=>{const filled=draft.map(v=>v||'X');setSaving(true);await submitHole({groupId:group.id,holeIndex,scores:filled});setSaving(false);setConfirmBlanks(false);if(holeIndex<17){const next=holeIndex+1;setHoleIndex(next);localStorage.setItem(holeKey(group.id),String(next))}}
+	const doSubmit=async scores=>{const filled=(scores??draft).map(v=>v||'X');setSaving(true);await submitHole({groupId:group.id,holeIndex,scores:filled});setSaving(false);setConfirmBlanks(false);if(holeIndex<17){const next=holeIndex+1;setHoleIndex(next);localStorage.setItem(holeKey(group.id),String(next))}}
+	const setValue=(scoreIndex,value,advance=false)=>{const next=draft.map((v,i)=>i===scoreIndex?value:v);setDraft(next);if(next.length&&next.every(Boolean))setTimeout(()=>doSubmit(next),250);else if(advance&&scoreIndex<draft.length-1)setTimeout(()=>inputRefs.current[scoreIndex+1]?.focus(),0)}
 	const attemptSubmit=()=>draft.some(v=>!v)?setConfirmBlanks(true):doSubmit()
 	const moveHole=next=>{setHoleIndex(next);localStorage.setItem(holeKey(group.id),String(next))}
 	return <main className="shell">
