@@ -6,8 +6,6 @@ const DEFAULT_GROUPS=[
 	{id:'group-a',name:'The Studs',type:'individual',players:[['A1','Andrew',10],['A2','Jack',8],['A3','Curtis',13]].map(([id,name,handicap])=>({id,name,handicap,scores:blanks()})),submittedHoles:unsubmitted()},
 	{id:'group-b',name:'The Duffers',type:'individual',players:[['B1','Chris',20],['B2','Gibb',23],['B3','Mike',9],['B4','Scott',15]].map(([id,name,handicap])=>({id,name,handicap,scores:blanks()})),submittedHoles:unsubmitted()},
 ]
-const playerV=v.object({id:v.string(),name:v.string(),handicap:v.number(),scores:v.array(v.string())})
-const groupV=v.object({id:v.string(),name:v.string(),type:v.union(v.literal('scramble'),v.literal('individual')),handicap:v.optional(v.number()),scores:v.optional(v.array(v.string())),players:v.array(playerV),submittedHoles:v.array(v.boolean())})
 const scores=value=>Array.from({length:18},(_,i)=>{const v=String(value?.[i]??'');return v==='X'||/^[1-9]$/.test(v)?v:''})
 const flags=(value,fallbackScores)=>Array.from({length:18},(_,i)=>typeof value?.[i]==='boolean'?value[i]:Boolean(fallbackScores?.[i]))
 function normalizeGroups(groups){
@@ -40,5 +38,4 @@ export const submitGroupHole=mutation({
 		await ctx.db.patch(state._id,{groups})
 	},
 })
-export const saveSettings=mutation({args:{groups:v.array(groupV)},handler:async(ctx,args)=>{const state=await ensure(ctx);const groups=state.groups.map(group=>{const incoming=args.groups.find(g=>g.id===group.id);if(!incoming)return group;if(group.type==='scramble')return {...group,name:incoming.name.trim()||group.name,handicap:Math.max(0,incoming.handicap??15)};return {...group,name:incoming.name.trim()||group.name,players:group.players.map(player=>{const p=incoming.players.find(x=>x.id===player.id);return p?{...player,name:p.name.trim()||player.name,handicap:Math.max(0,p.handicap)}:player})}});await ctx.db.patch(state._id,{groups})}})
-export const resetRound=mutation({args:{},handler:async ctx=>{const state=await ensure(ctx);const groups=state.groups.map(group=>({...group,scores:group.type==='scramble'?blanks():group.scores,submittedHoles:unsubmitted(),players:group.players.map(player=>({...player,scores:blanks()}))}));await ctx.db.patch(state._id,{groups})}})
+export const resetRound=mutation({args:{password:v.string()},handler:async(ctx,args)=>{if(args.password!=='Dutchy!4')throw new Error('Unauthorized');const state=await ensure(ctx);const groups=state.groups.map(group=>({...group,scores:group.type==='scramble'?blanks():group.scores,submittedHoles:unsubmitted(),players:group.players.map(player=>({...player,scores:blanks()}))}));await ctx.db.patch(state._id,{groups})}})
